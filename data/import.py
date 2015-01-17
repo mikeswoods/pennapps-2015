@@ -3,7 +3,7 @@
 import sqlite3
 import numpy as np
 from glob import glob
-from os import walk, listdir, remove, getcwd
+from os import walk, listdir, remove, getcwd, basename
 from os.path import exists, isfile, isdir, join, abspath, realpath
 import skimage
 from skimage.io import ImageCollection, imread
@@ -52,8 +52,8 @@ if __name__ == "__main__":
     create_db(conn)
 
     for (filename, image) in get_images("./icons/*.png"):
-        print filename
-        store(conn, filename, image)
+        print basename(filename)
+        store(conn, basename(filename), image)
 
     conn.commit()
     conn.close()
