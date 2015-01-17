@@ -5,3 +5,4 @@
 * skimage
 * sqlite3
 * matplotlib
+* pillow
