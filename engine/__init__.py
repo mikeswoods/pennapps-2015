@@ -9,3 +9,4 @@ TEST_IMAGES = [
     ,abspath('test/famous-face-dementia-617x416.jpg')
     ,abspath('test/white_powder_on_celebrity_faces.jpg')
 ]
+

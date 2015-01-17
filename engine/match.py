@@ -19,3 +19,4 @@ def build_index(db_data):
     tree = spatial.KDTree(points)
 
     return (tree, filenames)
+
