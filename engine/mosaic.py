@@ -34,7 +34,7 @@ def create_single(I, window_size, jitter_amt, images=None, k=5):
     (w,h,_) = I.shape
     J = np.zeros((w,h,4)).astype(np.uint8) # RGBA of uint8
     
-    chance = max(1.0 - (1.0 / (2.0 * math.sqrt(window_size))), 0.5)
+    chance = max(1.0 - (1.0 / (0.66 * math.sqrt(window_size))), 0.5)
     print "> chance = {}".format(chance)
 
     for ((xy1,xy2), avg_color) in zip(bins,colors):
@@ -88,7 +88,7 @@ def blank(w,h, debug=False):
     return I
 
 
-def create(input_image, output_image, k=5, n=1, start_window=64, end_window=8, images=None, debug=False):
+def create(input_image, output_image, k=3, n=10, start_window=120, end_window=10, images=None, debug=False):
     """
     All-in-one compositing step
 
@@ -120,7 +120,7 @@ def create(input_image, output_image, k=5, n=1, start_window=64, end_window=8, i
         if debug:
             imsave("debug_base.png", base)
 
-        base_img     = Image.fromarray(base)
+        base_img     = Image.fromarray(I)
         window_steps = np.linspace(start_window, end_window, num=n).astype(int)
 
         for (i,window) in enumerate(window_steps, start=0):
