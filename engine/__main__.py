@@ -3,6 +3,6 @@ import engine.mosaic
 
 ################################################################################
 
-engine.mosaic.create(engine.TEST_IMAGES[3], k=5, window=(16,16), jitter_amt=20, n=9)
+engine.mosaic.create(engine.TEST_IMAGES[3], k=5, start_window=160, n=6)
 
 ################################################################################

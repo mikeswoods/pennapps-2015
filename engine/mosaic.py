@@ -3,7 +3,8 @@ import engine.read
 import engine.images
 import engine.match
 import numpy as np
-from random import choice, randint
+import math
+from random import choice, randint, random
 from scipy import spatial
 import skimage
 from skimage.io import imsave
@@ -11,21 +12,34 @@ from skimage.transform import rescale
 import sqlite3
 from PIL import Image
 
+################################################################################
+
+def flip_coin(chance):
+    return random() < chance
 
 ################################################################################
 
-def create_single(I, k=5, window=(16,16), jitter_amt=10):
+def create_single(I, window_size, jitter_amt, images=None, k=5):
 
     #icons    = engine.images.load("data/icons/*.png")
     db_stats = engine.images.read_db()
 
+    window = (window_size,window_size)
+    jitter = (jitter_amt,jitter_amt)
+
     (tree,filenames) = engine.match.build_index(db_stats)
 
-    (bins,colors) = engine.read.resample(I, window, jitter=(jitter_amt,jitter_amt))
+    (bins,colors) = engine.read.resample(I, window, jitter=jitter)
     (w,h,_) = I.shape
     J = np.zeros((w,h,4)).astype(np.uint8) # RGBA of uint8
     
+    chance = 1.0 - (1.0 / (0.5 * math.sqrt(window_size)))
+    print "CHANCE = {}".format(chance)
+
     for ((xy1,xy2), avg_color) in zip(bins,colors):
+
+        if not flip_coin(0.9):
+            continue
 
         (x1,y1) = xy1
         (x2,y2) = xy2
@@ -36,7 +50,11 @@ def create_single(I, k=5, window=(16,16), jitter_amt=10):
         INDEX  = indices[i]
         CHOSEN = filenames[INDEX]
 
-        X = engine.read.load_image("data/icons/"+CHOSEN)
+        if images is None:
+            X = engine.read.load_image("data/icons/"+CHOSEN)
+        else:
+            X = images[CHOSEN]
+
         (iw,ih,id) = X.shape
         xscale = float(window[0]) / float(iw)
         yscale = float(window[1]) / float(ih)
@@ -45,10 +63,10 @@ def create_single(I, k=5, window=(16,16), jitter_amt=10):
         Y = skimage.img_as_ubyte(rescale(X, scale_factor))
 
         if (x2 - x1) == window[0] and (y2 - y1) == window[1]:
-
             J[x1:x2,y1:y2,:] = Y # Copy all channels (R,G,B, and A)
 
     return J
+
 
 def composite(base_img, paste_img):
     layer = Image.fromarray(paste_img)
@@ -56,27 +74,49 @@ def composite(base_img, paste_img):
     base_img.paste(layer, box=(0,0), mask=layer)
     return base_img
 
-def create(input_image, k=5, window=(16,16), jitter_amt=10, n=1):
+
+def blank(w,h, debug=False):
+
+    I = np.zeros((w,h,4)).astype(np.uint8)
+    I[:,:,3] = np.uint8(255)
+    # If debug, color the bg magenta
+    if debug:
+        I[:,:,0] = np.uint8(255)
+        I[:,:,2] = np.uint8(255)
+    return I
+
+
+def create(input_image, images=None, k=5, n=1, start_window=64, end_window=8, debug=False):
 
     I = engine.read.load_image(input_image)
     (w,h,_) = I.shape
 
      # Blank w x h image with 4 color channels: RGBA
-    base = np.zeros((w,h,4)).astype(np.uint8)
-    base[:,:,0] = np.uint8(255)
-    base[:,:,2] = np.uint8(255)
-    base[:,:,3] = np.uint8(255)
+    base = blank(w, h, debug=True)
 
-    imsave("base.png", base)
+    if images is not None:
+        print ">> Using cached images"
 
-    base_img = Image.fromarray(base)
+    print ">> Initial window: {}".format(start_window)
 
-    for i in range(0,n):
+    if debug:
+        imsave("debug_base.png", base)
 
-        print ">> Compositing layer: {}".format(i)
+    base_img     = Image.fromarray(base)
+    window_steps = np.linspace(start_window, end_window, num=n).astype(int)
 
-        layer_img = create_single(I, k=k, window=window, jitter_amt=jitter_amt)
-        imsave("layer_{}.png".format(i), layer_img)
+    for (i,window) in enumerate(window_steps, start=0):
+
+        jitter_amt = int(window * 0.5)
+
+        print ">> Compositing layer: {}, window: {}, jitter: {}".format(i, window, jitter_amt)
+
+        layer_img = create_single(I, window, jitter_amt, images=images, k=k)
+
+        window = int(window * 0.75)
+
+        if debug:
+            imsave("debug_layer_{}.png".format(i), layer_img)
 
         base_img = composite(base_img, layer_img)
 
