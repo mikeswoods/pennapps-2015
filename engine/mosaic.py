@@ -6,48 +6,79 @@ import numpy as np
 from random import choice, randint
 from scipy import spatial
 import skimage
+from skimage.io import imsave
 from skimage.transform import rescale
 import sqlite3
+from PIL import Image
+
 
 ################################################################################
 
-def create(input_image, output_name='output_', k=5, window=(16,16), n=1):
+def create_single(I, k=5, window=(16,16), jitter_amt=10):
 
     #icons    = engine.images.load("data/icons/*.png")
     db_stats = engine.images.read_db()
 
     (tree,filenames) = engine.match.build_index(db_stats)
 
+    (bins,colors) = engine.read.resample(I, window, jitter=(jitter_amt,jitter_amt))
+    (w,h,_) = I.shape
+    J = np.zeros((w,h,4)).astype(np.uint8) # RGBA of uint8
+    
+    for ((xy1,xy2), avg_color) in zip(bins,colors):
+
+        (x1,y1) = xy1
+        (x2,y2) = xy2
+        (dists, indices) = tree.query(avg_color, k=k)
+
+        i      = randint(0, len(dists)-1)
+        DIST   = dists[i]
+        INDEX  = indices[i]
+        CHOSEN = filenames[INDEX]
+
+        X = engine.read.load_image("data/icons/"+CHOSEN)
+        (iw,ih,id) = X.shape
+        xscale = float(window[0]) / float(iw)
+        yscale = float(window[1]) / float(ih)
+        scale_factor = (xscale, yscale)
+
+        Y = skimage.img_as_ubyte(rescale(X, scale_factor))
+
+        if (x2 - x1) == window[0] and (y2 - y1) == window[1]:
+
+            J[x1:x2,y1:y2,:] = Y # Copy all channels (R,G,B, and A)
+
+    return J
+
+def composite(base_img, paste_img):
+    layer = Image.fromarray(paste_img)
+    # see http://pillow.readthedocs.org/en/latest/reference/Image.html#PIL.Image.Image.paste
+    base_img.paste(layer, box=(0,0), mask=layer)
+    return base_img
+
+def create(input_image, k=5, window=(16,16), jitter_amt=10, n=1):
+
     I = engine.read.load_image(input_image)
+    (w,h,_) = I.shape
 
-    for m in range(0,n):
+     # Blank w x h image with 4 color channels: RGBA
+    base = np.zeros((w,h,4)).astype(np.uint8)
+    base[:,:,0] = np.uint8(255)
+    base[:,:,2] = np.uint8(255)
+    base[:,:,3] = np.uint8(255)
 
-        print "> composite iter: {}".format(m)
+    imsave("base.png", base)
 
-        (bins,colors) = engine.read.resample(I, window, jitter=(5,5))
-        J = np.zeros_like(I)
-        
-        for ((xy1,xy2), avg_color) in zip(bins,colors):
+    base_img = Image.fromarray(base)
 
-            (x1,y1) = xy1
-            (x2,y2) = xy2
-            (dists, indices) = tree.query(avg_color, k=k)
+    for i in range(0,n):
 
-            i      = randint(0, len(dists)-1)
-            DIST   = dists[i]
-            INDEX  = indices[i]
-            CHOSEN = filenames[INDEX]
+        print ">> Compositing layer: {}".format(i)
 
-            X = engine.read.load_image("data/icons/"+CHOSEN)
-            (iw,ih,id) = X.shape
-            xscale = float(window[0]) / float(iw)
-            yscale = float(window[1]) / float(ih)
-            scale_factor = (xscale, yscale)
+        layer_img = create_single(I, k=k, window=window, jitter_amt=jitter_amt)
+        imsave("layer_{}.png".format(i), layer_img)
 
-            Y = skimage.img_as_ubyte(rescale(X, scale_factor))
+        base_img = composite(base_img, layer_img)
 
-            if (x2 - x1) == window[0] and (y2 - y1) == window[1]:
+    imsave("output.png", base_img)
 
-                J[x1:x2,y1:y2,:] = Y[:,:,0:3] # Exclude alpha channel
-
-        skimage.io.imsave('{}{}.png'.format(output_name, m), J)
