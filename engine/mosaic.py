@@ -11,6 +11,7 @@ from skimage.io import imsave
 from skimage.transform import rescale
 import sqlite3
 from PIL import Image
+import warnings
 
 ################################################################################
 
@@ -33,12 +34,13 @@ def create_single(I, window_size, jitter_amt, images=None, k=5):
     (w,h,_) = I.shape
     J = np.zeros((w,h,4)).astype(np.uint8) # RGBA of uint8
     
-    chance = 1.0 - (1.0 / (0.5 * math.sqrt(window_size)))
-    print "CHANCE = {}".format(chance)
+    chance = max(1.0 - (1.0 / (2.0 * math.sqrt(window_size))), 0.5)
+    print "> chance = {}".format(chance)
 
     for ((xy1,xy2), avg_color) in zip(bins,colors):
 
-        if not flip_coin(0.9):
+        #if not flip_coin(0.9):
+        if not flip_coin(chance):
             continue
 
         (x1,y1) = xy1
@@ -86,39 +88,55 @@ def blank(w,h, debug=False):
     return I
 
 
-def create(input_image, images=None, k=5, n=1, start_window=64, end_window=8, debug=False):
+def create(input_image, output_image, k=5, n=1, start_window=64, end_window=8, images=None, debug=False):
+    """
+    All-in-one compositing step
 
-    I = engine.read.load_image(input_image)
-    (w,h,_) = I.shape
+    @param str input_image: Input image name
+    @param str output_image: Output image name
+    @param int k Top k similar images are chosen for a givem block. Default is 5 
+    @param int n Number of compositing iterations
+    @param start_window 64 Ending image chunk block size. Default is 8
+    @param int end_window Ending image chunk block size. Default is 8
+    @param images None
+    @param debug False
+    @param dict(str:numpy.array) images: dict of precached images: None by default
+    """
+    with warnings.catch_warnings():
 
-     # Blank w x h image with 4 color channels: RGBA
-    base = blank(w, h, debug=True)
+        warnings.simplefilter("ignore")
 
-    if images is not None:
-        print ">> Using cached images"
+        I = engine.read.load_image(input_image)
+        (w,h,_) = I.shape
 
-    print ">> Initial window: {}".format(start_window)
+         # Blank w x h image with 4 color channels: RGBA
+        base = blank(w, h, debug=True)
 
-    if debug:
-        imsave("debug_base.png", base)
+        if images is not None:
+            print ">> Using cached images"
 
-    base_img     = Image.fromarray(base)
-    window_steps = np.linspace(start_window, end_window, num=n).astype(int)
-
-    for (i,window) in enumerate(window_steps, start=0):
-
-        jitter_amt = int(window * 0.5)
-
-        print ">> Compositing layer: {}, window: {}, jitter: {}".format(i, window, jitter_amt)
-
-        layer_img = create_single(I, window, jitter_amt, images=images, k=k)
-
-        window = int(window * 0.75)
+        print ">> Initial window: {}".format(start_window)
 
         if debug:
-            imsave("debug_layer_{}.png".format(i), layer_img)
+            imsave("debug_base.png", base)
 
-        base_img = composite(base_img, layer_img)
+        base_img     = Image.fromarray(base)
+        window_steps = np.linspace(start_window, end_window, num=n).astype(int)
 
-    imsave("output.png", base_img)
+        for (i,window) in enumerate(window_steps, start=0):
+
+            jitter_amt = int(window * 0.5)
+
+            print ">> Compositing layer: {}, window: {}, jitter: {}".format(i, window, jitter_amt)
+
+            layer_img = create_single(I, window, jitter_amt, images=images, k=k)
+
+            window = int(window * 0.75)
+
+            if debug:
+                imsave("debug_layer_{}.png".format(i), layer_img)
+
+            base_img = composite(base_img, layer_img)
+
+        imsave("output.png", base_img)
 
