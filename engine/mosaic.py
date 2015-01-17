@@ -30,19 +30,30 @@ def create_single(I, window_size, jitter_amt, images=None, k=5):
 
     (tree,filenames) = engine.match.build_index(db_stats)
 
-    (bins,colors) = engine.read.resample(I, window, jitter=jitter)
+    # Any parts of the mask that are 1 will be processed, otherwise nothing
+    MASK = engine.match.build_mask(I)
+
+    # bins: @i ((x1,y1),(x2,y2))
+    # colors: @i average color for bin[i]
+    # show: @i bin[i] is masked/not masked
+    (bins, colors, show) = engine.read.resample(I, window, mask=MASK, jitter=jitter)
     (w,h,_) = I.shape
+
     J = np.zeros((w,h,4)).astype(np.uint8) # RGBA of uint8
     
-    chance = max(1.0 - (1.0 / (0.66 * math.sqrt(window_size))), 0.5)
+    chance = max(1.0 - (1.0 / (0.5 * math.sqrt(window_size))), 0.3)
     print "> chance = {}".format(chance)
 
-    for ((xy1,xy2), avg_color) in zip(bins,colors):
+    for ((xy1,xy2), avg_color) in zip(bins, colors):
+
+        #if not bool(show_bin):
+        #    continue
 
         #if not flip_coin(0.9):
         if not flip_coin(chance):
             continue
 
+        # Find the closest
         (x1,y1) = xy1
         (x2,y2) = xy2
         (dists, indices) = tree.query(avg_color, k=k)
@@ -57,6 +68,7 @@ def create_single(I, window_size, jitter_amt, images=None, k=5):
         else:
             X = images[CHOSEN]
 
+        # Resize to the given window:
         (iw,ih,id) = X.shape
         xscale = float(window[0]) / float(iw)
         yscale = float(window[1]) / float(ih)
@@ -71,7 +83,9 @@ def create_single(I, window_size, jitter_amt, images=None, k=5):
 
 
 def composite(base_img, paste_img):
+
     layer = Image.fromarray(paste_img)
+
     # see http://pillow.readthedocs.org/en/latest/reference/Image.html#PIL.Image.Image.paste
     base_img.paste(layer, box=(0,0), mask=layer)
     return base_img
@@ -107,9 +121,10 @@ def create(input_image, output_image, k=3, n=10, start_window=120, end_window=10
         warnings.simplefilter("ignore")
 
         I = engine.read.load_image(input_image)
+
         (w,h,_) = I.shape
 
-         # Blank w x h image with 4 color channels: RGBA
+        # Blank w x h image with 4 color channels: RGBA
         base = blank(w, h, debug=True)
 
         if images is not None:
