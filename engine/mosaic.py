@@ -12,6 +12,7 @@ from skimage.transform import rescale
 import sqlite3
 from PIL import Image
 import warnings
+import magic
 
 ################################################################################
 
@@ -42,7 +43,7 @@ def create_single(I, window_size, jitter_amt, images=None, k=5):
     J = np.zeros((w,h,4)).astype(np.uint8) # RGBA of uint8
     
     chance = max(1.0 - (1.0 / (0.5 * math.sqrt(window_size))), 0.3)
-    print "> chance = {}".format(chance)
+    print ">> Chance of output: {}".format(chance)
 
     for ((xy1,xy2), avg_color) in zip(bins, colors):
 
@@ -102,16 +103,16 @@ def blank(w,h, debug=False):
     return I
 
 
-def create(input_image, output_image, k=3, n=10, start_window=120, end_window=10, images=None, debug=False):
+def create_image(input_image, output_image, k=3, n=10, start_window=120, end_window=10, images=None, debug=False):
     """
-    All-in-one compositing step
+    All-in-one compositing step for static image
 
-    @param str input_image: Input image name
+    @param str|numpy.ndarray input_image: Input image, either a filename or ndarray
     @param str output_image: Output image name
-    @param int k Top k similar images are chosen for a givem block. Default is 5 
+    @param int k Top k similar images are chosen for a givem block
     @param int n Number of compositing iterations
-    @param start_window 64 Ending image chunk block size. Default is 8
-    @param int end_window Ending image chunk block size. Default is 8
+    @param start_window 64 Ending image chunk block size
+    @param int end_window Ending image chunk block size
     @param images None
     @param debug False
     @param dict(str:numpy.array) images: dict of precached images: None by default
@@ -120,7 +121,11 @@ def create(input_image, output_image, k=3, n=10, start_window=120, end_window=10
 
         warnings.simplefilter("ignore")
 
-        I = engine.read.load_image(input_image)
+        # Did we get a numpy array?
+        if isinstance(input_image, np.ndarray):
+            I = input_image.astype(np.uint8)
+        else:
+            I = engine.read.load_image(input_image)
 
         (w,h,_) = I.shape
 
@@ -153,5 +158,33 @@ def create(input_image, output_image, k=3, n=10, start_window=120, end_window=10
 
             base_img = composite(base_img, layer_img)
 
-        imsave("output.png", base_img)
+        imsave(output_image, base_img)
 
+
+################################################################################
+
+def create(input_image, *args, **kwargs):
+    """
+    Creates a mosaic for either an image or video
+
+    @param str|numpy.ndarray input_image: Input image, either a filename or ndarray
+    @param str output_image: Output image name
+    @param int k Top k similar images are chosen for a givem block.
+    @param int n Number of compositing iterations
+    @param start_window 64 Ending image chunk block size
+    @param int end_window Ending image chunk block size
+    @param images None
+    @param debug False
+    @param dict(str:numpy.array) images: dict of precached images: None by default
+    """
+    if isinstance(input_image, np.ndarray):
+        return create_image(input_image, *args, **kwargs)
+    else:
+
+        media_type = magic.from_file(input_image).strip().lower()
+        video_formats =  ['mp4', 'ogv', 'ogg', 'avi']
+
+        if any([fmt in media_type for fmt in video_formats]):
+            raise ValueError('Video not supported yet!!!!!!!!')
+        else:
+            return create_image(input_image, *args, **kwargs)
