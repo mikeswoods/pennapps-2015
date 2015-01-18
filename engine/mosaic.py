@@ -46,7 +46,7 @@ def create_single(I, window_size, jitter_amt, images=None, k=5):
 
     J = np.zeros((w,h,4)).astype(np.uint8) # RGBA of uint8
     
-    chance = max(1.0 - (1.0 / (0.5 * math.sqrt(window_size))), 0.3)
+    chance = max(1.0 - (1.0 / (0.5 * math.sqrt(window_size))), 0.5)
     print ">> Chance of output: {}".format(chance)
 
     for ((xy1,xy2), avg_color) in zip(bins, colors):
@@ -161,7 +161,7 @@ def create_gif(input_video, output_image, grab_frames=30, *args, **kwargs):
     print ">> Done!"
 
 
-def create_image(input_image, output_image, k=3, n=10, start_window=120, end_window=10, images=None, debug=False):
+def create_image(input_image, output_image, k=4, n=10, start_window=64, end_window=8, images=None, debug=False):
     """
     Create a mosaic of a static image
 
@@ -224,6 +224,12 @@ def create_image(input_image, output_image, k=3, n=10, start_window=120, end_win
         imsave(output_image, base_img)
         return output_image
 
+################################################################################
+
+def is_video_file(input):
+    media_type = magic.from_file(input).strip().lower()
+    video_formats =  ['mp4', 'ogv', 'ogg', 'avi']
+    return any([fmt in media_type for fmt in video_formats])    
 
 ################################################################################
 
@@ -232,11 +238,7 @@ def create(input, *args, **kwargs):
     if isinstance(input, np.ndarray):
         return create_image(input, *args, **kwargs)
     else:
-
-        media_type = magic.from_file(input).strip().lower()
-        video_formats =  ['mp4', 'ogv', 'ogg', 'avi']
-
-        if any([fmt in media_type for fmt in video_formats]):
+        if is_video_file(input):
             return create_gif(input, *args, **kwargs)
         else:
             return create_image(input, *args, **kwargs)
