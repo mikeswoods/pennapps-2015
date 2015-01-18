@@ -5,14 +5,15 @@ from os.path import join, basename
 
 ################################################################################
 
-input_image  = engine.TEST_IMAGES[5]
-output_image = join(getcwd(), 'mosaic_' + basename(input_image))
+input  = engine.TEST_IMAGES[5]
+output = join(getcwd(), 'mosaic_' + basename(input))
 
-print "<INPUT> {}\n<OUTPUT> {}".format(input_image, output_image)
+#input  = engine.TEST_VIDEOS[0]
+#output = join(getcwd(), 'mosaic_' + basename(input)) + ".gif"
 
-ZZ = engine.read.load_image(input_image)
-print ZZ
+print "<INPUT> {}\n<OUTPUT> {}".format(input, output)
 
-engine.mosaic.create(ZZ, output_image, k=3, n=12, start_window=64, end_window=10)
+engine.mosaic.create(input, output, k=3, n=12, start_window=64, end_window=10)
+#engine.mosaic.create(input, output, k=3, n=2, start_window=64, end_window=40)
 
 ################################################################################

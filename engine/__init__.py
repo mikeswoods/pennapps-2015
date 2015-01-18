@@ -12,3 +12,7 @@ TEST_IMAGES = [
     ,abspath('test/white_powder_on_celebrity_faces.jpg')
 ]
 
+
+TEST_VIDEOS = [
+     abspath('test/big_buck_bunny.mp4')
+]

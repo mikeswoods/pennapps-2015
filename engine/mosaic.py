@@ -4,6 +4,8 @@ import engine.images
 import engine.match
 import numpy as np
 import math
+import cv2
+import tempfile
 from random import choice, randint, random
 from scipy import spatial
 import skimage
@@ -13,6 +15,8 @@ import sqlite3
 from PIL import Image
 import warnings
 import magic
+
+import images2gif
 
 ################################################################################
 
@@ -103,9 +107,63 @@ def blank(w,h, debug=False):
     return I
 
 
+def create_gif(input_video, output_image, grab_frames=30, *args, **kwargs):
+    """
+    Create an animated GIF from a video
+    """
+
+    # clip = VideoFileClip(input_video)
+    # clip.write_gif("out.gif")
+
+    try:
+        vidFile = cv2.VideoCapture(input_video)
+    except:
+        print "Problem opening input stream!"
+        raise
+
+    if not vidFile.isOpened():
+        raise ValueError("capture stream not open")
+
+    # one good way of namespacing legacy openCV: cv2.cv.*
+    nFrames = int(vidFile.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT))
+    fps = vidFile.get(cv2.cv.CV_CAP_PROP_FPS)
+
+    print ">> FPS value: {}, frame number: {}" .format(fps, nFrames)
+    
+    save_frames = np.linspace(0, nFrames, grab_frames).astype(int)
+    grabbed_frames = []
+    k = 1
+
+    for i in range(0, nFrames):
+        
+        if i in save_frames:
+
+            (ret, frame) = vidFile.read()
+
+            frame_data = engine.mosaic.create(frame, None, *args, **kwargs)
+
+            # temp     = tempfile.NamedTemporaryFile(delete=False)
+            # out_name = temp.name + '.gif'
+            # gif_out  = Image.fromarray(frame_data)
+            # gif_out.save(out_name)
+
+            #grabbed_frames.append(Image.fromarray(frame_data))
+            grabbed_frames.append(frame_data)
+            
+            print "> Grabbed frame {}/{}".format(k, len(save_frames))
+            k += 1
+        
+        else:
+            ret = vidFile.grab()
+
+    images2gif.writeGif(output_image, grabbed_frames)
+
+    print ">> Done!"
+
+
 def create_image(input_image, output_image, k=3, n=10, start_window=120, end_window=10, images=None, debug=False):
     """
-    All-in-one compositing step for static image
+    Create a mosaic of a static image
 
     @param str|numpy.ndarray input_image: Input image, either a filename or ndarray
     @param str output_image: Output image name
@@ -121,8 +179,10 @@ def create_image(input_image, output_image, k=3, n=10, start_window=120, end_win
 
         warnings.simplefilter("ignore")
 
+        is_array = isinstance(input_image, np.ndarray)
+
         # Did we get a numpy array?
-        if isinstance(input_image, np.ndarray):
+        if is_array:
             I = input_image.astype(np.uint8)
         else:
             I = engine.read.load_image(input_image)
@@ -158,33 +218,25 @@ def create_image(input_image, output_image, k=3, n=10, start_window=120, end_win
 
             base_img = composite(base_img, layer_img)
 
+    if is_array:
+        return np.asarray(base_img, dtype=np.uint8)
+    else:
         imsave(output_image, base_img)
+        return output_image
 
 
 ################################################################################
 
-def create(input_image, *args, **kwargs):
-    """
-    Creates a mosaic for either an image or video
+def create(input, *args, **kwargs):
 
-    @param str|numpy.ndarray input_image: Input image, either a filename or ndarray
-    @param str output_image: Output image name
-    @param int k Top k similar images are chosen for a givem block.
-    @param int n Number of compositing iterations
-    @param start_window 64 Ending image chunk block size
-    @param int end_window Ending image chunk block size
-    @param images None
-    @param debug False
-    @param dict(str:numpy.array) images: dict of precached images: None by default
-    """
-    if isinstance(input_image, np.ndarray):
-        return create_image(input_image, *args, **kwargs)
+    if isinstance(input, np.ndarray):
+        return create_image(input, *args, **kwargs)
     else:
 
-        media_type = magic.from_file(input_image).strip().lower()
+        media_type = magic.from_file(input).strip().lower()
         video_formats =  ['mp4', 'ogv', 'ogg', 'avi']
 
         if any([fmt in media_type for fmt in video_formats]):
-            raise ValueError('Video not supported yet!!!!!!!!')
+            return create_gif(input, *args, **kwargs)
         else:
-            return create_image(input_image, *args, **kwargs)
+            return create_image(input, *args, **kwargs)
