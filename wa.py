@@ -10,17 +10,31 @@ SimpleTemplate.defaults["get_url"] = app.get_url
 @app.route('/upload', method='POST')
 def do_upload():
     email = request.forms.get('email')
-    upload = request.files.get('upload')
-    name, ext = os.path.splitext(upload.filename)
-    if ext not in ('.png', '.jpg', '.jpeg'):
+    print request.forms.get('videotoken')
+    if request.forms.get('videotoken'):
+      videotoken = request.forms.get('videotoken')
+      
+      upload = ziggeo.videos().download_video(videotoken)
+
+      save_path = "./static"
+      if not os.path.exists(save_path):
+        os.makedirs(save_path)
+      file_path = "{path}/{email}_{videotoken}.mp4".format(path=save_path, email=email,videotoken=videotoken)
+      with open(file_path,'w') as f:
+        f.write(upload)
+
+    else:
+      upload = request.files.get('upload')
+      name, ext = os.path.splitext(upload.filename)
+      if ext not in ('.png', '.jpg', '.jpeg','.mp4'):
         return "File extension not allowed."
 
-    save_path = "./static"
-    if not os.path.exists(save_path):
+      save_path = "./static"
+      if not os.path.exists(save_path):
         os.makedirs(save_path)
 
-    file_path = "{path}/{email}_{file}".format(path=save_path, email=email, file=upload.filename)
-    upload.save(file_path)
+      file_path = "{path}/{email}_{file}".format(path=save_path, email=email, file=upload.filename)
+      upload.save(file_path)
 
     db = sqlite3.connect('image.db')
     c = db.cursor()
@@ -34,9 +48,17 @@ def do_upload():
 def server_static(filename):
   return static_file(filename,root='./static')
 
+@app.route('/static/:path#.+#', name='static')
+def static(path):
+    return static_file(path, root='static')
+
 @app.route('/',name='root')
 def index():
-	return template('index')
+	db = sqlite3.connect('image.db')
+  	c = db.cursor()
+  	c.execute("SELECT * FROM images")
+  	images = c.fetchall()
+  	return template('index',images=images)
 
 @app.route('/<email>')
 def show_images(email):
@@ -45,6 +67,7 @@ def show_images(email):
   c.execute("SELECT * FROM images WHERE email=?",(email,))
   images = c.fetchall()
   return template('images',images = images, get_url = app.get_url)
+
 
 
 #app.run(host='localhost', port=8080, debug=True)

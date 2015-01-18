@@ -1,0 +1,30 @@
+.or{
+    text-align:center;
+}
+.or span {
+  display: inline-block;
+  position: relative;  
+}
+
+.or span:before, 
+.or span:after{
+    content: "";
+    position: absolute;
+    height: 13px;
+    border-bottom: 1px solid black;
+    top: 0;
+    width: 250px;
+}
+
+.or span:before {
+  right: 20%;
+  margin-right: 15px;
+}
+.or span:after {
+  left: 20%;
+  margin-left: 15px;
+}
+
+.item {
+    width:25%;
+}
